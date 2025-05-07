@@ -30,16 +30,12 @@ const SOSEmergency = () => {
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
   
-  // Check if user is admin or rescue team
+  // Check if user is authenticated
   useEffect(() => {
-    if (currentUser) {
-      if (!userProfile || (userProfile.userType !== 'admin' && userProfile.userType !== 'rescueTeam')) {
-        navigate('/');
-      }
-    } else {
+    if (!currentUser) {
       navigate('/login');
     }
-  }, [currentUser, userProfile, navigate]);
+  }, [currentUser, navigate]);
   
   const handleEmergency = () => {
     // Logic to handle SOS emergency
@@ -47,8 +43,8 @@ const SOSEmergency = () => {
     alert('Emergency services have been notified of your situation and location. Stay calm and wait for assistance.');
   };
   
-  // If not authorized, don't render anything (will be redirected by useEffect)
-  if (!currentUser || !userProfile || (userProfile.userType !== 'admin' && userProfile.userType !== 'rescueTeam')) {
+  // If not authenticated, don't render anything (will be redirected by useEffect)
+  if (!currentUser) {
     return null;
   }
   
@@ -79,7 +75,7 @@ const SOSEmergency = () => {
             <Button 
               size="xxl" 
               variant="destructive" 
-              className="w-56 h-56 rounded-full text-2xl mb-6 pulse-button"
+              className="w-56 h-56 rounded-full text-2xl mb-6 pulse-button bg-red-600 hover:bg-red-700"
               onClick={handleEmergency}
             >
               <Siren className="h-12 w-12 mb-2" />

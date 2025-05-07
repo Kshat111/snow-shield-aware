@@ -137,12 +137,12 @@ const Navbar = () => {
               <div className="flex items-center space-x-4">
                 {/* SOS Emergency Button - Only visible to admin and rescue team */}
                 {(safeUserProfile.userType === 'admin' || safeUserProfile.userType === 'rescueTeam') && (
-                  <Link to="/sos">
-                    <Button variant="destructive" size="sm" className="font-medium">
-                      <AlertTriangle className="h-4 w-4 mr-1" />
-                      SOS
-                    </Button>
-                  </Link>
+                <Link to="/sos">
+                  <Button variant="destructive" size="sm" className="font-medium">
+                    <AlertTriangle className="h-4 w-4 mr-1" />
+                    SOS
+                  </Button>
+                </Link>
                 )}
                 
                 {/* User Profile Menu */}
@@ -213,13 +213,13 @@ const Navbar = () => {
                   Education
                 </Link>
                 {(safeUserProfile.userType === 'admin' || safeUserProfile.userType === 'rescueTeam') && (
-                  <Link
-                    to="/sos"
-                    className="block pl-3 pr-4 py-2 border-l-4 border-red-500 text-base font-medium text-red-700 bg-red-50"
-                    onClick={toggleMenu}
-                  >
-                    SOS Emergency
-                  </Link>
+                <Link
+                  to="/sos"
+                  className="block pl-3 pr-4 py-2 border-l-4 border-red-500 text-base font-medium text-red-700 bg-red-50"
+                  onClick={toggleMenu}
+                >
+                  SOS Emergency
+                </Link>
                 )}
                 <Link
                   to="/profile"

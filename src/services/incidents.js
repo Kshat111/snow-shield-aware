@@ -187,8 +187,9 @@ export const createWarning = async (warningData) => {
     if (!Array.isArray(warningData.affectedPincodes) || warningData.affectedPincodes.length === 0) {
       throw new Error('At least one affected pincode must be specified');
     }
-    
-    const docRef = await addDoc(collection(db, WARNINGS_COLLECTION), {
+
+    // Create a warning object with all expected fields
+    const warning = {
       title: warningData.title,
       description: warningData.description,
       affectedPincodes: warningData.affectedPincodes,
@@ -196,8 +197,13 @@ export const createWarning = async (warningData) => {
       timestamp: serverTimestamp(),
       isActive: true,
       type: 'warning',
-      resolvedAt: null
-    });
+      resolvedAt: null,
+      expiryTime: warningData.expiryTime || null,
+      createdBy: warningData.createdBy || null,
+      createdByName: warningData.createdByName || 'Admin'
+    };
+    
+    const docRef = await addDoc(collection(db, WARNINGS_COLLECTION), warning);
     
     return { id: docRef.id };
   } catch (error) {

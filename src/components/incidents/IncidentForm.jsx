@@ -94,6 +94,11 @@ const IncidentForm = ({ isSOS = false }) => {
           type: isSOS ? 'SOS' : 'regular'
         });
         setPhotos([]);
+        
+        // Navigate back to dashboard after a short delay
+        setTimeout(() => {
+          navigate('/');
+        }, 2000); // 2 second delay to show success message
       }
     } catch (err) {
       console.error('Error creating incident:', err);

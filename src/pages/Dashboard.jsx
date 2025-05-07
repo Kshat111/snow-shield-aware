@@ -5,7 +5,7 @@ import WeatherWidget from '../components/dashboard/WeatherWidget';
 import IncidentCard from '../components/incidents/IncidentCard';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { getIncidentsByPincode, getAllIncidents, getSOSAlerts, getWarningsForPincode } from '../services/incidents';
+import { getIncidentsByPincode, getAllIncidents, getWarningsForPincode } from '../services/incidents';
 import { Bell, AlertTriangle, FilePlus } from 'lucide-react';
 
 // Custom CSS for pulsing animation
@@ -42,18 +42,27 @@ const Dashboard = () => {
         setLoading(true);
         setError('');
         
-        // Fetch SOS alerts
-        const alertsData = await getSOSAlerts();
-        setSOSAlerts(alertsData);
-        
         // Fetch all incidents
-        const incidentsData = await getAllIncidents();
-        setIncidents(incidentsData);
+        const allIncidents = await getAllIncidents();
+        
+        // Filter out SOS incidents for non-admin users
+        const filteredIncidents = userProfile?.userType === 'admin' 
+          ? allIncidents 
+          : allIncidents.filter(incident => incident.type !== 'SOS');
+        
+        setIncidents(filteredIncidents);
         
         // Fetch warnings for user's pincode
         if (userProfile?.pincode) {
           const warningsData = await getWarningsForPincode(userProfile.pincode);
-          setWarnings(warningsData);
+          
+          // Filter out expired warnings
+          const now = new Date();
+          const activeWarnings = warningsData.filter(warning => 
+            !warning.expiryTime || new Date(warning.expiryTime) > now
+          );
+          
+          setWarnings(activeWarnings);
         }
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -68,10 +77,22 @@ const Dashboard = () => {
     }
   }, [currentUser, userProfile]);
 
-  // Filter for local incidents (for the "Near You" section)
-  const localIncidents = userProfile?.pincode 
-    ? incidents.filter(incident => incident.pincode === userProfile.pincode)
-    : [];
+  // Format date for warnings
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    
+    const date = timestamp instanceof Date 
+      ? timestamp 
+      : new Date(timestamp.seconds ? timestamp.seconds * 1000 : timestamp);
+      
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   const educationalContent = [
     {
@@ -95,6 +116,39 @@ const Dashboard = () => {
     <div className="space-y-8">
       {/* Inject pulsing animation CSS */}
       <style>{pulseAnimation}</style>
+      
+      {/* Warnings Section - Show at the top if there are active warnings */}
+      {warnings.length > 0 && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md">
+          <div className="flex items-center mb-3">
+            <Bell className="h-6 w-6 text-yellow-500 mr-2" />
+            <h2 className="text-lg font-bold text-yellow-700">Active Warnings in Your Area</h2>
+          </div>
+          
+          <div className="space-y-4">
+            {warnings.map(warning => (
+              <div key={warning.id} className="bg-white p-4 rounded-md border border-yellow-200">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-gray-900">
+                    {warning.title}
+                  </h3>
+                  <span className={`px-2 py-1 rounded text-xs text-white font-medium bg-${warning.severity === 'high' ? 'red-500' : warning.severity === 'medium' ? 'amber-500' : 'yellow-500'}`}>
+                    {warning.severity.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-gray-700 my-2">{warning.description}</p>
+                <div className="text-xs text-gray-500 flex flex-wrap gap-x-4">
+                  <span>Issued by: {warning.createdByName || 'Admin'}</span>
+                  <span>Issued: {formatDate(warning.timestamp)}</span>
+                  {warning.expiryTime && (
+                    <span>Expires: {formatDate(warning.expiryTime)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row gap-6">
@@ -120,16 +174,18 @@ const Dashboard = () => {
                     Report Incident
                   </Button>
                 </Link>
-                <Link to="/sos">
-                  <Button 
-                    size="xxl" 
-                    variant="destructive" 
-                    className="text-base px-6 py-5 pulse-button"
-                  >
-                    <AlertTriangle className="h-6 w-6 mr-2" />
-                    SOS Emergency
-                  </Button>
-                </Link>
+                {currentUser && (
+                  <Link to="/sos">
+                    <Button 
+                      size="xxl" 
+                      variant="destructive" 
+                      className="text-base px-6 py-5 pulse-button bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      <AlertTriangle className="h-6 w-6 mr-2" />
+                      SOS Emergency
+                    </Button>
+                  </Link>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -141,7 +197,7 @@ const Dashboard = () => {
       </div>
       
       {/* Near You Section (if user has pincode) */}
-      {userProfile?.pincode && localIncidents.length > 0 && (
+      {userProfile?.pincode && warnings.length > 0 && (
         <div>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-gray-900 flex items-center">
@@ -154,42 +210,22 @@ const Dashboard = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {localIncidents.slice(0, 3).map(incident => (
-              <IncidentCard key={incident.id} incident={incident} />
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Active Warnings Section */}
-      {warnings.length > 0 && (
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center">
-              <AlertTriangle className="h-5 w-5 mr-2 text-warning" />
-              Active Warnings
-            </h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {warnings.map(warning => (
-              <Card key={warning.id} className="border-warning border-2">
-                <CardHeader className="bg-warning/10">
-                  <CardTitle className="text-lg">{warning.title}</CardTitle>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 rounded text-xs text-white font-medium bg-${warning.severity}`}>
+            {warnings.slice(0, 3).map(warning => (
+              <Card key={warning.id} className="bg-yellow-50 border-l-4 border-yellow-400">
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-gray-900">{warning.title}</h3>
+                    <span className={`px-2 py-1 rounded text-xs text-white font-medium bg-${warning.severity === 'high' ? 'red-500' : warning.severity === 'medium' ? 'amber-500' : 'yellow-500'}`}>
                       {warning.severity.toUpperCase()}
                     </span>
-                    <span className="text-sm text-gray-500">
-                      Expires: {formatDate(warning.expiryTime)}
-                    </span>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-700">{warning.description}</p>
-                  <div className="mt-4 text-sm text-gray-500">
-                    <p>Issued by: {warning.createdByName}</p>
-                    <p>Issued at: {formatDate(warning.timestamp)}</p>
+                  <p className="text-gray-700 my-2">{warning.description}</p>
+                  <div className="text-xs text-gray-500 flex flex-wrap gap-x-4">
+                    <span>Issued by: {warning.createdByName || 'Admin'}</span>
+                    <span>Issued: {formatDate(warning.timestamp)}</span>
+                    {warning.expiryTime && (
+                      <span>Expires: {formatDate(warning.expiryTime)}</span>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -202,7 +238,7 @@ const Dashboard = () => {
       <div>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-900">Recent Reports</h2>
-          <Link to="/reports" className="text-primary-600 text-sm hover:underline">
+          <Link to="/alerts" className="text-primary-600 text-sm hover:underline">
             View all
           </Link>
         </div>
@@ -229,7 +265,11 @@ const Dashboard = () => {
         ) : incidents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {incidents.slice(0, 6).map(incident => (
-              <IncidentCard key={incident.id} incident={incident} />
+              <IncidentCard 
+                key={`${incident.id}-${incident.timestamp}`} 
+                incident={incident}
+                showType={true}
+              />
             ))}
           </div>
         ) : (

@@ -60,34 +60,33 @@ const AdminDashboard = () => {
   
   // Fetch data
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        
-        // Fetch SOS alerts
-        const alertsData = await getSOSAlerts();
-        setSOSAlerts(alertsData);
-        
-        // Fetch all incidents
-        const incidentsData = await getAllIncidents();
-        // Filter out SOS alerts from incidents list
-        const regularIncidents = incidentsData.filter(
-          incident => incident.type !== 'SOS'
-        );
-        setIncidents(regularIncidents);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Failed to load data. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    if (currentUser && (userProfile?.userType === 'admin' || userProfile?.userType === 'rescueTeam')) {
-      fetchData();
-    }
+    fetchData();
   }, [currentUser, userProfile]);
+  
+  // Standalone fetchData function that can be called after actions
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Fetch SOS alerts
+      const alertsData = await getSOSAlerts();
+      setSOSAlerts(alertsData);
+      
+      // Fetch all incidents
+      const incidentsData = await getAllIncidents();
+      // Filter out SOS alerts from incidents list
+      const regularIncidents = incidentsData.filter(
+        incident => incident.type !== 'SOS'
+      );
+      setIncidents(regularIncidents);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Failed to load data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const handleResolveAlert = async (alertId) => {
     try {
@@ -115,32 +114,45 @@ const AdminDashboard = () => {
     setError('');
     
     try {
+      // Validate that we have affected pincodes
+      if (!warningData.affectedPincodes || warningData.affectedPincodes.length === 0) {
+        throw new Error('You must specify at least one affected pincode');
+      }
+      
       // Convert duration to timestamp
       const durationInHours = parseInt(warningData.duration);
       const expiryTime = new Date();
       expiryTime.setHours(expiryTime.getHours() + durationInHours);
       
-      await createWarning({
+      console.log('Creating warning with data:', {
         ...warningData,
         expiryTime,
         createdBy: currentUser.uid,
         createdByName: userProfile?.name || 'Admin'
       });
       
+      const result = await createWarning({
+        ...warningData,
+        expiryTime,
+        createdBy: currentUser.uid,
+        createdByName: userProfile?.name || 'Admin'
+      });
+      
+      console.log('Warning created:', result);
       setShowWarningModal(false);
       setWarningData({
         title: '',
         description: '',
         severity: 'medium',
         affectedPincodes: [],
-        duration: '24h'
+        duration: '24'
       });
       
       // Refresh the data
       fetchData();
     } catch (err) {
       console.error('Error creating warning:', err);
-      setError('Failed to create warning. Please try again.');
+      setError(err.message || 'Failed to create warning. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -155,7 +167,13 @@ const AdminDashboard = () => {
   };
   
   const handlePincodeChange = (e) => {
-    const pincodes = e.target.value.split(',').map(p => p.trim());
+    const pincodesString = e.target.value;
+    // Split by comma, trim each pincode, and filter out empty strings
+    const pincodes = pincodesString
+      .split(',')
+      .map(pincode => pincode.trim())
+      .filter(pincode => pincode !== '');
+    
     setWarningData(prev => ({
       ...prev,
       affectedPincodes: pincodes
@@ -356,6 +374,13 @@ const AdminDashboard = () => {
             
             <form onSubmit={handleWarningSubmit}>
               <CardContent className="space-y-4">
+                {error && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-md flex items-center">
+                    <AlertTriangle className="h-5 w-5 mr-2" />
+                    {error}
+                  </div>
+                )}
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Title</label>
                   <Input
@@ -381,6 +406,22 @@ const AdminDashboard = () => {
                 </div>
                 
                 <div>
+                  <label className="block text-sm font-medium text-gray-700">Affected Pincodes</label>
+                  <Input
+                    name="affectedPincodes"
+                    value={Array.isArray(warningData.affectedPincodes) 
+                      ? warningData.affectedPincodes.join(', ')
+                      : warningData.affectedPincodes}
+                    onChange={handlePincodeChange}
+                    placeholder="Enter pincodes separated by commas"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter multiple pincodes separated by commas (e.g., 123456, 789012)
+                  </p>
+                </div>
+                
+                <div>
                   <label className="block text-sm font-medium text-gray-700">Severity</label>
                   <select
                     name="severity"
@@ -391,20 +432,7 @@ const AdminDashboard = () => {
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
-                    <option value="extreme">Extreme</option>
                   </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Affected Pincodes</label>
-                  <Input
-                    name="affectedPincodes"
-                    value={warningData.affectedPincodes.join(', ')}
-                    onChange={handlePincodeChange}
-                    placeholder="Enter pincodes separated by commas"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Separate multiple pincodes with commas</p>
                 </div>
                 
                 <div>

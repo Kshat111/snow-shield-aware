@@ -12,9 +12,9 @@ const Alerts = () => {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchPincode, setSearchPincode] = useState('');
+  const [searchPincode, setSearchPincode] = useState(userProfile?.pincode || '');
   const [filteredIncidents, setFilteredIncidents] = useState([]);
-  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'local', 'sos'
+  const [activeFilter, setActiveFilter] = useState(userProfile?.pincode ? 'local' : 'all'); // 'all', 'local', 'sos'
   
   // Initial load of all incidents
   useEffect(() => {
@@ -23,29 +23,17 @@ const Alerts = () => {
         setLoading(true);
         setError('');
         
-        let allIncidents = await getAllIncidents();
-        
-        // Filter out SOS alerts for non-admin users
-        if (userProfile?.userType !== 'admin') {
-          allIncidents = allIncidents.filter(incident => incident.type !== 'SOS');
-        }
-        
-        // Sort by timestamp (newest first)
-        allIncidents.sort((a, b) => {
-          // SOS alerts always first
-          if (a.type === 'SOS' && b.type !== 'SOS') return -1;
-          if (a.type !== 'SOS' && b.type === 'SOS') return 1;
-          // Then sort by date
-          return new Date(b.timestamp) - new Date(a.timestamp);
-        });
-        
+        const allIncidents = await getAllIncidents();
         setIncidents(allIncidents);
-        setFilteredIncidents(allIncidents);
         
-        // If user has pincode, set active filter to 'local'
+        // Apply initial filtering
         if (userProfile?.pincode) {
-          setSearchPincode(userProfile.pincode);
-          handleFilterChange('local');
+          const localIncidents = allIncidents.filter(
+            incident => incident.pincode === userProfile.pincode
+          );
+          setFilteredIncidents(localIncidents);
+        } else {
+          setFilteredIncidents(allIncidents.filter(incident => incident.type !== 'SOS'));
         }
       } catch (err) {
         console.error('Error fetching incidents:', err);
@@ -58,62 +46,54 @@ const Alerts = () => {
     fetchIncidents();
   }, [userProfile]);
   
-  // Filter incidents when active filter changes
-  useEffect(() => {
-    if (incidents.length === 0) return;
-    
-    let filtered = [...incidents];
-    
-    if (activeFilter === 'local' && searchPincode) {
-      filtered = incidents.filter(incident => 
-        incident.pincode === searchPincode
-      );
-    } else if (activeFilter === 'sos') {
-      filtered = incidents.filter(incident => 
-        incident.type === 'SOS'
-      );
-    }
-    
-    setFilteredIncidents(filtered);
-  }, [activeFilter, searchPincode, incidents]);
-  
-  const handleFilterChange = (filter) => {
-    setActiveFilter(filter);
-  };
-  
   const handleSearch = async (e) => {
     e.preventDefault();
     
-    if (!searchPincode) {
-      // If search is cleared, show all incidents
-      setFilteredIncidents(incidents);
-      setActiveFilter('all');
+    if (!searchPincode.trim()) {
+      setError('Please enter a pincode to search');
       return;
     }
     
-    setLoading(true);
-    setError('');
-    
     try {
-      // Search for incidents with the given pincode
-      const localIncidents = await getIncidentsByPincode(searchPincode);
+      setLoading(true);
+      setError('');
       
-      // Filter out SOS alerts for non-admin users
-      const filteredLocalIncidents = userProfile?.userType === 'admin' 
-        ? localIncidents 
-        : localIncidents.filter(incident => incident.type !== 'SOS');
+      const pincodeIncidents = incidents.filter(
+        incident => incident.pincode === searchPincode.trim()
+      );
       
-      if (filteredLocalIncidents.length === 0) {
-        setError(`No incidents found for pincode ${searchPincode}`);
+      if (pincodeIncidents.length === 0) {
+        setError('No incidents found for this pincode');
       }
       
-      setFilteredIncidents(filteredLocalIncidents);
+      setFilteredIncidents(pincodeIncidents);
       setActiveFilter('local');
     } catch (err) {
       console.error('Error searching incidents:', err);
       setError('Failed to search incidents. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const handleFilterChange = (filter) => {
+    setActiveFilter(filter);
+    
+    switch (filter) {
+      case 'all':
+        setFilteredIncidents(incidents.filter(incident => incident.type !== 'SOS'));
+        break;
+      case 'local':
+        const localIncidents = incidents.filter(
+          incident => incident.pincode === searchPincode && incident.type !== 'SOS'
+        );
+        setFilteredIncidents(localIncidents);
+        break;
+      case 'sos':
+        setFilteredIncidents(incidents.filter(incident => incident.type === 'SOS'));
+        break;
+      default:
+        setFilteredIncidents(incidents);
     }
   };
   
@@ -201,7 +181,11 @@ const Alerts = () => {
       ) : filteredIncidents.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredIncidents.map(incident => (
-            <IncidentCard key={incident.id} incident={incident} />
+            <IncidentCard 
+              key={incident.id} 
+              incident={incident}
+              showType={true}
+            />
           ))}
         </div>
       ) : (
