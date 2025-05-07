@@ -25,6 +25,11 @@ const Alerts = () => {
         
         let allIncidents = await getAllIncidents();
         
+        // Filter out SOS alerts for non-admin users
+        if (userProfile?.userType !== 'admin') {
+          allIncidents = allIncidents.filter(incident => incident.type !== 'SOS');
+        }
+        
         // Sort by timestamp (newest first)
         allIncidents.sort((a, b) => {
           // SOS alerts always first
@@ -93,11 +98,16 @@ const Alerts = () => {
       // Search for incidents with the given pincode
       const localIncidents = await getIncidentsByPincode(searchPincode);
       
-      if (localIncidents.length === 0) {
+      // Filter out SOS alerts for non-admin users
+      const filteredLocalIncidents = userProfile?.userType === 'admin' 
+        ? localIncidents 
+        : localIncidents.filter(incident => incident.type !== 'SOS');
+      
+      if (filteredLocalIncidents.length === 0) {
         setError(`No incidents found for pincode ${searchPincode}`);
       }
       
-      setFilteredIncidents(localIncidents);
+      setFilteredIncidents(filteredLocalIncidents);
       setActiveFilter('local');
     } catch (err) {
       console.error('Error searching incidents:', err);
@@ -156,14 +166,16 @@ const Alerts = () => {
           {searchPincode ? `Pincode: ${searchPincode}` : 'Local Alerts'}
         </Button>
         
-        <Button
-          variant={activeFilter === 'sos' ? 'destructive' : 'outline'}
-          size="sm"
-          onClick={() => handleFilterChange('sos')}
-        >
-          <AlertTriangle className="h-4 w-4 mr-1" />
-          SOS Alerts
-        </Button>
+        {userProfile?.userType === 'admin' && (
+          <Button
+            variant={activeFilter === 'sos' ? 'destructive' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('sos')}
+          >
+            <AlertTriangle className="h-4 w-4 mr-1" />
+            SOS Alerts
+          </Button>
+        )}
       </div>
       
       {loading ? (

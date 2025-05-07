@@ -2,6 +2,8 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/Card';
 import { AlertTriangle, MapPin, Phone, Siren } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 
 // Custom CSS for pulsing animation
 const pulseAnimation = `
@@ -26,12 +28,29 @@ const pulseAnimation = `
 
 const SOSEmergency = () => {
   const { currentUser, userProfile } = useAuth();
+  const navigate = useNavigate();
+  
+  // Check if user is admin or rescue team
+  useEffect(() => {
+    if (currentUser) {
+      if (!userProfile || (userProfile.userType !== 'admin' && userProfile.userType !== 'rescueTeam')) {
+        navigate('/');
+      }
+    } else {
+      navigate('/login');
+    }
+  }, [currentUser, userProfile, navigate]);
   
   const handleEmergency = () => {
     // Logic to handle SOS emergency
     console.log('SOS Emergency triggered');
     alert('Emergency services have been notified of your situation and location. Stay calm and wait for assistance.');
   };
+  
+  // If not authorized, don't render anything (will be redirected by useEffect)
+  if (!currentUser || !userProfile || (userProfile.userType !== 'admin' && userProfile.userType !== 'rescueTeam')) {
+    return null;
+  }
   
   return (
     <div className="space-y-6">

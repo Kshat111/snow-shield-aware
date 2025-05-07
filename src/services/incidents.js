@@ -41,9 +41,19 @@ export const createIncident = async (incidentData, photoFiles = []) => {
       }
     }
     
+    // Validate incident type
+    if (!['regular', 'SOS'].includes(incidentData.type)) {
+      throw new Error('Invalid incident type. Must be either "regular" or "SOS"');
+    }
+    
     // Add the incident to Firestore
     const docRef = await addDoc(collection(db, INCIDENTS_COLLECTION), {
-      ...incidentData,
+      userId: incidentData.userId,
+      type: incidentData.type,
+      title: incidentData.title,
+      description: incidentData.description,
+      location: incidentData.location,
+      pincode: incidentData.pincode,
       photos: photoUrls,
       timestamp: serverTimestamp(),
       isActive: true
@@ -165,16 +175,28 @@ export const deleteIncident = async (incidentId) => {
   }
 };
 
-// Create a new warning
+// Create a new warning (admin only)
 export const createWarning = async (warningData) => {
   try {
+    // Validate severity
+    if (!['low', 'medium', 'high'].includes(warningData.severity)) {
+      throw new Error('Invalid severity level. Must be "low", "medium", or "high"');
+    }
+    
+    // Validate affected pincodes
+    if (!Array.isArray(warningData.affectedPincodes) || warningData.affectedPincodes.length === 0) {
+      throw new Error('At least one affected pincode must be specified');
+    }
+    
     const docRef = await addDoc(collection(db, WARNINGS_COLLECTION), {
-      ...warningData,
+      title: warningData.title,
+      description: warningData.description,
+      affectedPincodes: warningData.affectedPincodes,
+      severity: warningData.severity,
       timestamp: serverTimestamp(),
       isActive: true,
-      affectedPincodes: warningData.affectedPincodes || [],
-      severity: warningData.severity || 'medium',
-      type: 'warning'
+      type: 'warning',
+      resolvedAt: null
     });
     
     return { id: docRef.id };

@@ -3,9 +3,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../ui/Card';
 import { createIncident } from '../../services/incidents';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, AlertCircle } from 'lucide-react';
 
 const IncidentForm = ({ isSOS = false }) => {
   const { currentUser, userProfile } = useAuth();
@@ -17,16 +18,16 @@ const IncidentForm = ({ isSOS = false }) => {
   const [photos, setPhotos] = useState([]);
   
   const [formData, setFormData] = useState({
-    title: isSOS ? 'SOS Emergency Alert' : '',
+    title: '',
     description: '',
-    riskLevel: isSOS ? 'High' : 'Medium',
+    location: '',
     pincode: userProfile?.pincode || '',
-    type: isSOS ? 'SOS' : 'incident'
+    type: isSOS ? 'SOS' : 'regular'
   });
   
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       [name]: value
     }));
@@ -34,6 +35,12 @@ const IncidentForm = ({ isSOS = false }) => {
   
   const handlePhotoChange = (e) => {
     const files = Array.from(e.target.files);
+    
+    // If no files selected, clear photos
+    if (files.length === 0) {
+      setPhotos([]);
+      return;
+    }
     
     // Validate file types and sizes
     const validFiles = files.filter(file => {
@@ -57,18 +64,12 @@ const IncidentForm = ({ isSOS = false }) => {
       return;
     }
     
-    if (!formData.title) {
-      setError('Please provide a title for the incident.');
-      return;
-    }
+    // Validate required fields
+    const requiredFields = ['title', 'description', 'pincode'];
+    const missingFields = requiredFields.filter(field => !formData[field]);
     
-    if (!formData.description) {
-      setError('Please provide a description of the incident.');
-      return;
-    }
-    
-    if (!formData.pincode) {
-      setError('Please provide a location pincode.');
+    if (missingFields.length > 0) {
+      setError(`Please fill in all required fields: ${missingFields.join(', ')}`);
       return;
     }
     
@@ -78,34 +79,25 @@ const IncidentForm = ({ isSOS = false }) => {
     try {
       const incidentData = {
         ...formData,
-        reportedBy: currentUser.uid
+        userId: currentUser.uid
       };
       
       const result = await createIncident(incidentData, photos);
       
       if (result?.id) {
         setSuccess(true);
-        
-        // Redirect after short delay for SOS alerts
-        if (isSOS) {
-          setTimeout(() => {
-            navigate('/');
-          }, 2000);
-        } else {
-          // Clear form for regular incident report
-          setFormData({
-            title: '',
-            description: '',
-            riskLevel: 'Medium',
-            pincode: userProfile?.pincode || '',
-            type: 'incident'
-          });
-          setPhotos([]);
-        }
+        setFormData({
+          title: '',
+          description: '',
+          location: '',
+          pincode: userProfile?.pincode || '',
+          type: isSOS ? 'SOS' : 'regular'
+        });
+        setPhotos([]);
       }
     } catch (err) {
       console.error('Error creating incident:', err);
-      setError('Failed to submit incident report. Please try again.');
+      setError(err.message || 'Failed to submit incident report. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -137,58 +129,60 @@ const IncidentForm = ({ isSOS = false }) => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-md flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                {error}
+              </div>
+            )}
+            
             <div>
               <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                Title
+                Title {isSOS && <span className="text-red-500">*</span>}
               </label>
               <Input
                 id="title"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="Brief title describing the incident"
-                disabled={isSOS || loading}
+                placeholder={isSOS ? "Emergency situation title" : "Incident title"}
+                disabled={loading}
+                required
               />
             </div>
             
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                Description
+                Description {isSOS && <span className="text-red-500">*</span>}
               </label>
-              <textarea
+              <Textarea
                 id="description"
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                placeholder="Detailed description of the incident or situation"
-                rows={4}
-                className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+                placeholder={isSOS ? "Describe the emergency situation..." : "Describe the incident..."}
+                disabled={loading}
+                required
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+                Location
+              </label>
+              <Input
+                id="location"
+                name="location"
+                value={formData.location}
+                onChange={handleChange}
+                placeholder="Enter location details"
                 disabled={loading}
               />
             </div>
             
             <div>
-              <label htmlFor="riskLevel" className="block text-sm font-medium text-gray-700 mb-1">
-                Risk Level
-              </label>
-              <select
-                id="riskLevel"
-                name="riskLevel"
-                value={formData.riskLevel}
-                onChange={handleChange}
-                className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
-                disabled={isSOS || loading}
-              >
-                <option value="Low">Low</option>
-                <option value="Medium">Medium</option>
-                <option value="High">High</option>
-                <option value="Extreme">Extreme</option>
-              </select>
-            </div>
-            
-            <div>
               <label htmlFor="pincode" className="block text-sm font-medium text-gray-700 mb-1">
-                Location Pincode
+                Pincode {isSOS && <span className="text-red-500">*</span>}
               </label>
               <Input
                 id="pincode"
@@ -197,6 +191,7 @@ const IncidentForm = ({ isSOS = false }) => {
                 onChange={handleChange}
                 placeholder="Enter area pincode"
                 disabled={loading}
+                required
               />
             </div>
             
@@ -207,34 +202,30 @@ const IncidentForm = ({ isSOS = false }) => {
               <Input
                 id="photos"
                 type="file"
-                accept="image/jpeg,image/png,image/jpg"
                 multiple
+                accept="image/*"
                 onChange={handlePhotoChange}
-                className="file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
                 disabled={loading}
               />
-              <p className="text-xs text-gray-500 mt-1">Upload up to 5 photos (JPG/PNG, max 5MB each)</p>
-              
+              <p className="mt-1 text-sm text-gray-500">
+                You can upload up to 5 images (JPG, PNG) under 5MB each
+              </p>
               {photos.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {photos.map((photo, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={URL.createObjectURL(photo)}
-                        alt={`Preview ${index + 1}`}
-                        className="h-16 w-16 object-cover rounded"
-                      />
-                    </div>
-                  ))}
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600">
+                    Selected {photos.length} photo{photos.length !== 1 ? 's' : ''}
+                  </p>
                 </div>
               )}
             </div>
             
-            {error && (
-              <div className="p-3 bg-danger/10 border border-danger rounded text-danger text-sm">
-                {error}
-              </div>
-            )}
+            <Button
+              type="submit"
+              disabled={loading}
+              className={`w-full ${isSOS ? 'bg-red-600 hover:bg-red-700' : ''}`}
+            >
+              {loading ? 'Submitting...' : isSOS ? 'Send SOS Alert' : 'Report Incident'}
+            </Button>
           </form>
         )}
       </CardContent>
@@ -249,14 +240,6 @@ const IncidentForm = ({ isSOS = false }) => {
             disabled={loading}
           >
             Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant={isSOS ? 'destructive' : 'default'}
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? 'Submitting...' : isSOS ? 'Send SOS Alert' : 'Submit Report'}
           </Button>
         </CardFooter>
       )}

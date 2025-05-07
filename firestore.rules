@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Incidents collection rules
+    match /incidents/{incidentId} {
+      allow read: if true;  // Anyone can read incidents
+      allow create: if isAuthenticated();  // Only authenticated users can create
+      allow update, delete: if isAuthenticated() && 
+        (resource.data.reportedBy == request.auth.uid || 
+         request.auth.token.admin == true);  // Only owner or admin can update/delete
+    }
+    
+    // Warnings collection rules
+    match /warnings/{warningId} {
+      allow read: if true;  // Anyone can read warnings
+      allow write: if isAuthenticated() && request.auth.token.admin == true;  // Only admins can create/update warnings
+    }
+  }
+} 
