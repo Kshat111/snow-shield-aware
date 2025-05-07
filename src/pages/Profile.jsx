@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { User, Mail, MapPin, Shield, Save, AlertTriangle, Phone } from 'lucide-react';
+import { User, Mail, MapPin, Shield, Save, AlertTriangle, Phone, LogOut } from 'lucide-react';
 import { getFirebaseErrorMessage, logFirebaseError } from '../utils/firebaseErrorHandler';
 
 const Profile = () => {
-  const { currentUser, userProfile, updateUserProfile } = useAuth();
+  const { currentUser, userProfile, updateUserProfile, logout } = useAuth();
   const navigate = useNavigate();
   
   const [loading, setLoading] = useState(false);
@@ -114,6 +114,16 @@ const Profile = () => {
       setError(getFirebaseErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add logout handler
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
     }
   };
 
@@ -263,7 +273,7 @@ const Profile = () => {
             </div>
           </CardContent>
           
-          <CardFooter className="flex justify-end">
+          <CardFooter className="flex flex-col md:flex-row md:justify-between gap-2">
             <Button 
               type="submit" 
               disabled={loading}
@@ -280,6 +290,15 @@ const Profile = () => {
                   Save Changes
                 </span>
               )}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="flex items-center"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Log Out
             </Button>
           </CardFooter>
         </form>

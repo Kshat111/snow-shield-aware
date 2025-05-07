@@ -313,7 +313,7 @@ const AuthForm = ({ signup = false }) => {
                   ) : (
                     <span className="flex items-center">
                       <ShieldAlert className="h-4 w-4 mr-2" />
-                      Create Emergency Account
+                      Create Account
                     </span>
                   )}
                 </>

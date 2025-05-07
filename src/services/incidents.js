@@ -16,6 +16,7 @@ import { db, storage } from './firebase';
 
 // Collection references
 const INCIDENTS_COLLECTION = 'incidents';
+const WARNINGS_COLLECTION = 'warnings';
 
 // Helper function to generate a filename for uploading
 const generateFileName = (file) => {
@@ -160,6 +161,80 @@ export const deleteIncident = async (incidentId) => {
     return { success: true };
   } catch (error) {
     console.error('Error deleting incident:', error);
+    throw error;
+  }
+};
+
+// Create a new warning
+export const createWarning = async (warningData) => {
+  try {
+    const docRef = await addDoc(collection(db, WARNINGS_COLLECTION), {
+      ...warningData,
+      timestamp: serverTimestamp(),
+      isActive: true,
+      affectedPincodes: warningData.affectedPincodes || [],
+      severity: warningData.severity || 'medium',
+      type: 'warning'
+    });
+    
+    return { id: docRef.id };
+  } catch (error) {
+    console.error('Error creating warning:', error);
+    throw error;
+  }
+};
+
+// Get active warnings for a specific pincode
+export const getWarningsForPincode = async (pincode) => {
+  try {
+    const q = query(
+      collection(db, WARNINGS_COLLECTION),
+      where('isActive', '==', true),
+      where('affectedPincodes', 'array-contains', pincode),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching warnings:', error);
+    throw error;
+  }
+};
+
+// Get all active warnings
+export const getAllActiveWarnings = async () => {
+  try {
+    const q = query(
+      collection(db, WARNINGS_COLLECTION),
+      where('isActive', '==', true),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching all warnings:', error);
+    throw error;
+  }
+};
+
+// Resolve a warning
+export const resolveWarning = async (warningId) => {
+  try {
+    const warningRef = doc(db, WARNINGS_COLLECTION, warningId);
+    await updateDoc(warningRef, {
+      isActive: false,
+      resolvedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error resolving warning:', error);
     throw error;
   }
 }; 

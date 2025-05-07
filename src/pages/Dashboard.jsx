@@ -5,7 +5,7 @@ import WeatherWidget from '../components/dashboard/WeatherWidget';
 import IncidentCard from '../components/incidents/IncidentCard';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { getIncidentsByPincode, getAllIncidents } from '../services/incidents';
+import { getIncidentsByPincode, getAllIncidents, getSOSAlerts, getWarningsForPincode } from '../services/incidents';
 import { Bell, AlertTriangle, FilePlus } from 'lucide-react';
 
 // Custom CSS for pulsing animation
@@ -34,52 +34,39 @@ const Dashboard = () => {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [warnings, setWarnings] = useState([]);
 
   useEffect(() => {
-    const fetchIncidents = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         setError('');
         
-        // If user has a pincode, get local incidents first
-        let localIncidents = [];
+        // Fetch SOS alerts
+        const alertsData = await getSOSAlerts();
+        setSOSAlerts(alertsData);
+        
+        // Fetch all incidents
+        const incidentsData = await getAllIncidents();
+        setIncidents(incidentsData);
+        
+        // Fetch warnings for user's pincode
         if (userProfile?.pincode) {
-          localIncidents = await getIncidentsByPincode(userProfile.pincode);
+          const warningsData = await getWarningsForPincode(userProfile.pincode);
+          setWarnings(warningsData);
         }
-        
-        // Get some global incidents too
-        const allIncidents = await getAllIncidents();
-        
-        // Combine and prioritize SOS alerts
-        const combined = [...allIncidents];
-        
-        if (localIncidents.length > 0) {
-          // Add local incidents if not already in the array (by ID)
-          localIncidents.forEach(localIncident => {
-            if (!combined.some(incident => incident.id === localIncident.id)) {
-              combined.push(localIncident);
-            }
-          });
-        }
-        
-        // Sort by type (SOS first) and then by timestamp
-        combined.sort((a, b) => {
-          if (a.type === 'SOS' && b.type !== 'SOS') return -1;
-          if (a.type !== 'SOS' && b.type === 'SOS') return 1;
-          return new Date(b.timestamp) - new Date(a.timestamp);
-        });
-        
-        setIncidents(combined.slice(0, 6)); // Show at most 6 incidents
       } catch (err) {
-        console.error('Error fetching incidents:', err);
-        setError('Failed to load incidents. Please try again later.');
+        console.error('Error fetching data:', err);
+        setError('Failed to load data. Please try again later.');
       } finally {
         setLoading(false);
       }
     };
-
-    fetchIncidents();
-  }, [userProfile]);
+    
+    if (currentUser) {
+      fetchData();
+    }
+  }, [currentUser, userProfile]);
 
   // Filter for local incidents (for the "Near You" section)
   const localIncidents = userProfile?.pincode 
@@ -169,6 +156,43 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {localIncidents.slice(0, 3).map(incident => (
               <IncidentCard key={incident.id} incident={incident} />
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Active Warnings Section */}
+      {warnings.length > 0 && (
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2 text-warning" />
+              Active Warnings
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {warnings.map(warning => (
+              <Card key={warning.id} className="border-warning border-2">
+                <CardHeader className="bg-warning/10">
+                  <CardTitle className="text-lg">{warning.title}</CardTitle>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 rounded text-xs text-white font-medium bg-${warning.severity}`}>
+                      {warning.severity.toUpperCase()}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      Expires: {formatDate(warning.expiryTime)}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-700">{warning.description}</p>
+                  <div className="mt-4 text-sm text-gray-500">
+                    <p>Issued by: {warning.createdByName}</p>
+                    <p>Issued at: {formatDate(warning.timestamp)}</p>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>

@@ -1,4 +1,4 @@
-# Snow and Avalanche Safety Awareness Web App
+# Snow Shield - Snow and Avalanche Safety Awareness App
 
 A React-based web application to promote snow and avalanche safety. The app provides real-time weather data, community-reported snow conditions, and educational content with user roles, an admin panel, incident reporting, and SOS alert capabilities.
 

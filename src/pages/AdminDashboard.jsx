@@ -1,12 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { getSOSAlerts, getAllIncidents, updateIncident } from '../services/incidents';
+import { getSOSAlerts, getAllIncidents, updateIncident, createWarning } from '../services/incidents';
 import { AlertTriangle, Check, X, Bell, Search } from 'lucide-react';
 import { formatDate } from '../lib/utils';
+
+// Custom CSS for pulsing alert animation
+const alertPulseAnimation = `
+  @keyframes alert-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7);
+      filter: brightness(1);
+    }
+    50% {
+      box-shadow: 0 0 0 12px rgba(251, 191, 36, 0);
+      filter: brightness(1.1);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+      filter: brightness(1);
+    }
+  }
+  .alert-pulse-button {
+    animation: alert-pulse 1.5s infinite;
+  }
+`;
 
 const AdminDashboard = () => {
   const { currentUser, userProfile } = useAuth();
@@ -17,6 +38,14 @@ const AdminDashboard = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('sos'); // 'sos', 'incidents'
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [warningData, setWarningData] = useState({
+    title: '',
+    description: '',
+    severity: 'medium',
+    affectedPincodes: [],
+    duration: '24h'
+  });
   
   // Check if user is admin or rescue team
   useEffect(() => {
@@ -77,8 +106,60 @@ const AdminDashboard = () => {
   };
   
   const handleIssueWarning = async () => {
-    // In a real app, this would send notifications to users in a specific area
-    alert('Warning notification feature would be implemented here');
+    setShowWarningModal(true);
+  };
+  
+  const handleWarningSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Convert duration to timestamp
+      const durationInHours = parseInt(warningData.duration);
+      const expiryTime = new Date();
+      expiryTime.setHours(expiryTime.getHours() + durationInHours);
+      
+      await createWarning({
+        ...warningData,
+        expiryTime,
+        createdBy: currentUser.uid,
+        createdByName: userProfile?.name || 'Admin'
+      });
+      
+      setShowWarningModal(false);
+      setWarningData({
+        title: '',
+        description: '',
+        severity: 'medium',
+        affectedPincodes: [],
+        duration: '24h'
+      });
+      
+      // Refresh the data
+      fetchData();
+    } catch (err) {
+      console.error('Error creating warning:', err);
+      setError('Failed to create warning. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleWarningChange = (e) => {
+    const { name, value } = e.target;
+    setWarningData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handlePincodeChange = (e) => {
+    const pincodes = e.target.value.split(',').map(p => p.trim());
+    setWarningData(prev => ({
+      ...prev,
+      affectedPincodes: pincodes
+    }));
   };
   
   // Filter the data based on search term
@@ -112,6 +193,8 @@ const AdminDashboard = () => {
   
   return (
     <div className="space-y-6">
+      {/* Inject pulsing animation CSS for alert button */}
+      <style>{alertPulseAnimation}</style>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -135,11 +218,12 @@ const AdminDashboard = () => {
           </div>
           
           <Button 
-            variant="outline" 
-            className="ml-2 whitespace-nowrap"
+            variant="warning" 
+            className="ml-2 flex items-center font-bold text-lg px-6 py-3 shadow-lg alert-pulse-button border-2 border-yellow-400 bg-yellow-300 text-yellow-900 hover:bg-yellow-400 hover:text-yellow-900 focus:ring-4 focus:ring-yellow-200"
             onClick={handleIssueWarning}
+            style={{ minWidth: '180px' }}
           >
-            <Bell className="h-4 w-4 mr-1" />
+            <Bell className="h-6 w-6 mr-2 animate-bounce text-yellow-900" />
             Issue Warning
           </Button>
         </div>
@@ -257,6 +341,109 @@ const AdminDashboard = () => {
             <p>No {activeTab === 'sos' ? 'SOS alerts' : 'incidents'} found.</p>
           </CardContent>
         </Card>
+      )}
+      
+      {/* Warning Modal */}
+      {showWarningModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl">
+            <CardHeader>
+              <CardTitle>Issue Warning</CardTitle>
+              <CardDescription>
+                Create a warning for specific areas
+              </CardDescription>
+            </CardHeader>
+            
+            <form onSubmit={handleWarningSubmit}>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Title</label>
+                  <Input
+                    name="title"
+                    value={warningData.title}
+                    onChange={handleWarningChange}
+                    placeholder="Warning title"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <textarea
+                    name="description"
+                    value={warningData.description}
+                    onChange={handleWarningChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    rows="3"
+                    placeholder="Detailed warning description"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Severity</label>
+                  <select
+                    name="severity"
+                    value={warningData.severity}
+                    onChange={handleWarningChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="extreme">Extreme</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Affected Pincodes</label>
+                  <Input
+                    name="affectedPincodes"
+                    value={warningData.affectedPincodes.join(', ')}
+                    onChange={handlePincodeChange}
+                    placeholder="Enter pincodes separated by commas"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Separate multiple pincodes with commas</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Duration</label>
+                  <select
+                    name="duration"
+                    value={warningData.duration}
+                    onChange={handleWarningChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    <option value="12">12 hours</option>
+                    <option value="24">24 hours</option>
+                    <option value="48">48 hours</option>
+                    <option value="72">72 hours</option>
+                  </select>
+                </div>
+              </CardContent>
+              
+              <CardFooter className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowWarningModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  variant="warning"
+                  className="flex items-center font-bold text-lg px-6 py-3 shadow-lg alert-pulse-button border-2 border-yellow-400 bg-yellow-300 text-yellow-900 hover:bg-yellow-400 hover:text-yellow-900 focus:ring-4 focus:ring-yellow-200"
+                  style={{ minWidth: '180px' }}
+                >
+                  {loading ? 'Creating...' : 'Create Warning'}
+                </Button>
+              </CardFooter>
+            </form>
+          </Card>
+        </div>
       )}
     </div>
   );
